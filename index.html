@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ソーダくん - ホーム画面モックアップ</title>
+  <style>
+    /* ============================================
+       全体レイアウト
+       PCでスマホフレームをセンタリング表示
+    ============================================ */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #1a1a2e;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Maru Gothic ProN', 'Rounded Mplus 1c', sans-serif;
+      padding: 20px;
+    }
+
+    /* リセットボタン（画面外上部） */
+    .controls-bar {
+      margin-bottom: 12px;
+    }
+    .btn-reset {
+      padding: 6px 16px;
+      border: none;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      background: rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.7);
+      letter-spacing: 0.05em;
+      transition: background 0.2s;
+    }
+    .btn-reset:hover {
+      background: rgba(255,255,255,0.25);
+    }
+    .btn-poison {
+      padding: 6px 16px;
+      border: none;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      background: rgba(180, 40, 100, 0.3);
+      color: rgba(255,180,220,0.9);
+      letter-spacing: 0.05em;
+      transition: background 0.2s;
+    }
+    .btn-poison:hover {
+      background: rgba(180, 40, 100, 0.5);
+    }
+
+    /* ============================================
+       スマホフレーム
+       375x812px（iPhone 13相当）
+       border: 10px → 内寸 355x792
+    ============================================ */
+    .phone-frame {
+      width: 375px;
+      height: 812px;
+      border-radius: 50px;
+      border: 10px solid #2a2a3e;
+      box-shadow:
+        0 0 0 2px #444,
+        0 30px 80px rgba(0,0,0,0.7),
+        inset 0 0 0 1px rgba(255,255,255,0.08);
+      position: relative;
+      overflow: hidden;
+      background: #0d0d1a;
+    }
+
+    /* ノッチ */
+    .phone-notch {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 150px;
+      height: 28px;
+      background: #2a2a3e;
+      border-radius: 0 0 20px 20px;
+      z-index: 100;
+    }
+
+    /* ============================================
+       背景動画
+       phone-frame内に絶対配置
+       object-fit: coverで隙間なく表示
+    ============================================ */
+    #bg-video {
+      position: absolute;
+      top: -2px;
+      left: -2px;
+      width: calc(100% + 4px);
+      height: calc(100% + 4px);
+      object-fit: cover;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    /* ============================================
+       Three.jsレンダラーのcanvas
+       背景動画の上に透明背景で重ねる
+       pointer-events: none にして
+       タップイベントは別レイヤーで受ける
+    ============================================ */
+    #three-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 3;
+      pointer-events: none; /* タップは#tap-layerで処理 */
+    }
+
+    /* ============================================
+       タップ受付用透明レイヤー
+       Three.jsのcanvasの上に重ねる
+    ============================================ */
+    /* 毒ガスエフェクト用WebGLキャンバス */
+    #gas-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    #tap-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 4;
+      cursor: pointer;
+    }
+
+    /* ============================================
+       テキストラベル用レイヤー
+       各油玉の3D座標をスクリーン座標に変換して
+       HTMLのdivを配置する
+    ============================================ */
+    #label-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 5;
+      pointer-events: none; /* タップをtap-layerに通す */
+      overflow: hidden;
+    }
+
+    /* 各油玉のラベルdiv */
+    .blob-label {
+      position: absolute;
+      transform: translate(-50%, -50%); /* 中心基準で配置 */
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Maru Gothic ProN', 'Rounded Mplus 1c', sans-serif;
+      text-align: center;
+      text-shadow:
+        0 1px 4px rgba(0,0,0,0.5),
+        0 0 8px rgba(0,0,0,0.3);
+      white-space: nowrap;
+      line-height: 1.4;
+      pointer-events: none;
+      /* フェードイン */
+      transition: opacity 0.3s ease;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- リセットボタン（スマホフレームの外・上部） -->
+  <!-- エンジニアへの注釈: 本番では削除またはデバッグメニューに移動 -->
+  <div class="controls-bar">
+    <button class="btn-reset" id="btn-reset">リセット</button>
+    <button class="btn-poison" id="btn-poison">毒ガス発生＋1</button>
+  </div>
+
+  <!-- スマホフレーム -->
+  <div class="phone-frame">
+    <div class="phone-notch"></div>
+
+    <!-- 背景動画（最背面） -->
+    <!-- 【要実装】動画ファイルパスは本番環境に合わせて変更 -->
+    <video
+      id="bg-video"
+      src="background_soda.webm"
+      loop
+      muted
+      playsinline
+      autoplay
+      poster="background_soda.png"
+    ></video>
+
+    <!-- Three.jsレンダラー出力先（透明背景） -->
+    <canvas id="three-canvas"></canvas>
+
+    <!-- 毒ガスエフェクト用WebGLキャンバス -->
+    <canvas id="gas-canvas"></canvas>
+
+    <!-- タップ受付レイヤー（pointer-eventsあり） -->
+    <div id="tap-layer"></div>
+
+    <!-- テキストラベルレイヤー -->
+    <div id="label-layer"></div>
+  </div>
+
+
+  <script id="vertexShader" type="x-shader/x-vertex">
+uniform float uTime;
+uniform float uRadius;
+out float vNoise;
+
+vec4 permute(vec4 x) { return mod(((x*34.0)+1.0)*x,289.0); }
+float permute(float x) { return floor(mod(((x*34.0)+1.0)*x,289.0)); }
+vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159-0.85373472095314*r; }
+float taylorInvSqrt(float r) { return 1.79284291400159-0.85373472095314*r; }
+
+vec4 grad4(float j, vec4 ip) {
+  const vec4 ones = vec4(1.0,1.0,1.0,-1.0);
+  vec4 p,s;
+  p.xyz = floor(fract(vec3(j)*ip.xyz)*7.0)*ip.z-1.0;
+  p.w = 1.5-dot(abs(p.xyz),ones.xyz);
+  s = vec4(lessThan(p,vec4(0.0)));
+  p.xyz = p.xyz+(s.xyz*2.0-1.0)*s.www;
+  return p;
+}
+
+float snoise(vec4 v) {
+  const vec2 C = vec2(0.138196601125010504, 0.309016994374947451);
+  vec4 i = floor(v+dot(v,C.yyyy));
+  vec4 x0 = v-i+dot(i,C.xxxx);
+  vec4 i0;
+  vec3 isX = step(x0.yzw,x0.xxx);
+  vec3 isYZ = step(x0.zww,x0.yyz);
+  i0.x = isX.x+isX.y+isX.z;
+  i0.yzw = 1.0-isX;
+  i0.y += isYZ.x+isYZ.y;
+  i0.zw += 1.0-isYZ.xy;
+  i0.z += isYZ.z;
+  i0.w += 1.0-isYZ.z;
+  vec4 i3=clamp(i0,0.0,1.0);
+  vec4 i2=clamp(i0-1.0,0.0,1.0);
+  vec4 i1=clamp(i0-2.0,0.0,1.0);
+  vec4 x1=x0-i1+C.xxxx;
+  vec4 x2=x0-i2+2.0*C.xxxx;
+  vec4 x3=x0-i3+3.0*C.xxxx;
+  vec4 x4=x0-1.0+4.0*C.xxxx;
+  i=mod(i,289.0);
+  float j0=permute(permute(permute(permute(i.w)+i.z)+i.y)+i.x);
+  vec4 j1=permute(permute(permute(permute(i.w+vec4(i1.w,i2.w,i3.w,1.0))+i.z+vec4(i1.z,i2.z,i3.z,1.0))+i.y+vec4(i1.y,i2.y,i3.y,1.0))+i.x+vec4(i1.x,i2.x,i3.x,1.0));
+  vec4 ip=vec4(1.0/294.0,1.0/49.0,1.0/7.0,0.0);
+  vec4 p0=grad4(j0,ip);
+  vec4 p1=grad4(j1.x,ip);
+  vec4 p2=grad4(j1.y,ip);
+  vec4 p3=grad4(j1.z,ip);
+  vec4 p4=grad4(j1.w,ip);
+  vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));
+  p0*=norm.x; p1*=norm.y; p2*=norm.z; p3*=norm.w;
+  p4*=taylorInvSqrt(dot(p4,p4));
+  vec3 m0=max(0.6-vec3(dot(x0,x0),dot(x1,x1),dot(x2,x2)),0.0);
+  vec2 m1=max(0.6-vec2(dot(x3,x3),dot(x4,x4)),0.0);
+  m0=m0*m0; m1=m1*m1;
+  return 49.0*(dot(m0*m0,vec3(dot(p0,x0),dot(p1,x1),dot(p2,x2)))+dot(m1*m1,vec2(dot(p3,x3),dot(p4,x4))));
+}
+
+void main() {
+  // unit sphere 上のパーティクルをノイズで変形してから uRadius でスケール
+  vNoise = snoise(vec4(position / 1.5, uTime));
+  vec3 deformed = position + normalize(position) * vNoise / 6.0;
+  vec3 scaled = deformed * uRadius;
+
+  vec4 modelPosition = modelMatrix * vec4(scaled, 1.0);
+  vec4 viewPosition = viewMatrix * modelPosition;
+  vec4 projectedPosition = projectionMatrix * viewPosition;
+
+  gl_Position = projectedPosition;
+  gl_PointSize = 3.5;
+}
+  </script>
+
+  <script id="fragmentShader" type="x-shader/x-fragment">
+in float vNoise;
+uniform float uColorMorph;
+out vec4 outColor;
+
+vec3 hsl2rgb(in vec3 c) {
+  vec3 rgb = clamp(abs(mod(c.x*6.0+vec3(0.0,4.0,2.0),6.0)-3.0)-1.0,0.0,1.0);
+  return c.z+c.y*(rgb-0.5)*(1.0-abs(2.0*c.z-1.0));
+}
+
+void main() {
+  vec2 coord = gl_PointCoord - vec2(0.5);
+  float dist = length(coord);
+  if (dist > 0.5) discard;
+
+  float fresnel = pow(dist * 2.0, 1.8);
+
+  // 通常の水色系
+  float hue = 0.55 + vNoise * 0.05 + dist * 0.08;
+  vec3 iridescent = hsl2rgb(vec3(hue, 0.85, 0.82));
+
+  // 変色ターゲット: #4C7C6B = rgb(76,124,107)、ノイズで微妙にゆらぎ
+  vec3 targetColor = vec3(0.298, 0.486, 0.420) + vNoise * 0.04;
+
+  // smoothstepで有機的に補間
+  float t = uColorMorph * uColorMorph * (3.0 - 2.0 * uColorMorph);
+  vec3 baseColor = mix(iridescent, targetColor, t);
+
+  float spec = smoothstep(0.18, 0.0, length(coord - vec2(-0.14, -0.16)));
+  vec3 color = mix(baseColor, vec3(1.0), spec * 0.85);
+
+  float alpha = mix(0.04, 0.65, fresnel) + spec * 0.3;
+
+  outColor = vec4(color, clamp(alpha, 0.0, 1.0));
+}
+  </script>
+
+  <!-- 毒ガスエフェクト: 頂点シェーダー（gl_VertexIDで全画面クワッド生成） -->
+  <script id="gasVertexShader" type="x-shader/x-vertex">
+#version 300 es
+void main() {
+  // gl_VertexID 0-3 から全画面クワッドを生成
+  vec2 pos[4];
+  pos[0] = vec2(-1.0, -1.0);
+  pos[1] = vec2( 1.0, -1.0);
+  pos[2] = vec2(-1.0,  1.0);
+  pos[3] = vec2( 1.0,  1.0);
+  gl_Position = vec4(pos[gl_VertexID], 0.0, 1.0);
+}
+  </script>
+
+  <!-- 毒ガスエフェクト: フラグメントシェーダー（domain warped FBM） -->
+  <script id="gasFragmentShader" type="x-shader/x-fragment">
+#version 300 es
+precision highp float;
+uniform float uTime;
+uniform float uPoisonLevel;
+uniform vec2  uResolution;
+out vec4 outColor;
+
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+    mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+    u.y
+  );
+}
+
+float fbm(vec2 p) {
+  float v = 0.0, a = 0.5;
+  mat2 rot = mat2(1.6, 1.2, -1.2, 1.6);
+  for (int i = 0; i < 5; i++) {
+    v += a * noise(p);
+    p = rot * p;
+    a *= 0.5;
+  }
+  return v;
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / uResolution;
+
+  float t = uTime * 0.075;
+  vec2 p = uv * 1.2;
+
+  // ドメインワープ: 2段階のFBMで座標を歪める
+  vec2 q = vec2(fbm(p + t),                    fbm(p + vec2(5.2, 1.3) + t * 0.8));
+  vec2 r = vec2(fbm(p + 3.5 * q + vec2(1.7, 9.2) + t * 0.7),
+                fbm(p + 3.5 * q + vec2(8.3, 2.8) + t * 0.5));
+  float n = fbm(p + 3.5 * r);
+
+  // コンタリングバンド（参考画像の等高線表現）
+  float nScaled = n * 4.5;
+  float band = fract(nScaled);
+  float edgeIntensity = 1.0 - smoothstep(0.0, 0.06, band) * smoothstep(1.0, 0.94, band);
+
+  // カラーパレット（参考動画に合わせた: ダークティール背景 + マゼンタブロブ + パープル等高線）
+  vec3 darkBg    = vec3(0.04, 0.22, 0.18);
+  vec3 midGreen  = vec3(0.07, 0.35, 0.27);
+  vec3 magenta   = vec3(0.72, 0.17, 0.43);
+  vec3 lightPink = vec3(0.88, 0.38, 0.58);
+  vec3 purple    = vec3(0.38, 0.08, 0.58);
+
+  // ノイズ値に応じたカラーマッピング
+  float t1 = smoothstep(0.25, 0.45, n);
+  float t2 = smoothstep(0.55, 0.72, n);
+  float t3 = smoothstep(0.82, 0.96, n);
+
+  vec3 color = mix(darkBg, midGreen, t1);
+  color = mix(color, magenta, t2 * (1.0 - t3));
+  color = mix(color, darkBg, t3);
+
+  // パープル等高線を合成
+  color = mix(color, purple, edgeIntensity * 0.85);
+
+  // マゼンタ中心の明るいハイライト
+  float highlight = smoothstep(0.62, 0.75, n) * (1.0 - smoothstep(0.75, 0.82, n));
+  color = mix(color, lightPink, highlight * 0.6);
+
+  // 毒ガス強度（腐った泡の数で不透明度が上がる）
+  float maxAlpha = clamp(uPoisonLevel / 5.0, 0.0, 1.0) * 0.82;
+  outColor = vec4(color, maxAlpha);
+}
+  </script>
+
+  <!-- Three.js ES Module -->
+  <!-- バージョン: 0.162.0 (2024年2月リリース) -->
+  <script type="module">
+  import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.module.js';
+
+  // ============================================================
+  //  ソーダくん - Three.js 油玉シミュレーション
+  //
+  //  構成:
+  //  1. 定数・設定値
+  //  2. Three.js セットアップ（renderer / scene / camera / lights）
+  //  3. OilBlob クラス（3D球体 + ノイズ頂点変形）
+  //  4. ラベルDOM管理
+  //  5. メインループ (requestAnimationFrame)
+  //  6. タップインタラクション（Raycaster）
+  //  7. リセット
+  //
+  //  【実装メモ - エンジニア向け】
+  //  - Three.jsはCDN経由のES Moduleとして読み込み
+  //  - renderer.alpha: true で背景を透明にし、<video>と合成
+  //  - 頂点変形はノイズ関数(sin波重ね合わせ)で毎フレーム実施
+  //    → computeVertexNormals()を毎フレーム呼ぶためCPU負荷あり
+  //    → 本番でGPUシェーダー(GLSL)に移行することを推奨
+  //  - テキストはHTML divで実装（Three.jsのSprite/Canvasより
+  //    フォント品質が高く、CSS変更も容易なため）
+  // ============================================================
+
+
+  // --- 1. 定数・設定値 -------------------------------------------
+
+  // スマホフレームの内寸（border: 10px分を引いた値）
+  const W = 355;
+  const H = 792;
+
+  const MAX_BLOB_COUNT = 5;   // 最大生成数
+  const SPAWN_INTERVAL = 30000; // 次の泡を生成するまでの間隔（ms）
+
+  // 会話テーマ一覧
+  // 【要実装】本番はAPIから取得する想定。随時追加可能
+  const THEMES = [
+    '今日の気分は？',
+    '最近ハマってること',
+    '夢の話',
+    'もしも1億円あったら',
+    '好きな食べ物って？',
+    'ストレス発散法',
+    '理想の休日',
+    '最近見た映画',
+  ];
+
+
+  // --- 2. Three.js セットアップ ----------------------------------
+
+  const canvas = document.getElementById('three-canvas');
+
+  // レンダラー
+  // alpha: true → 背景透明（背景動画が透けて見える）
+  // antialias: true → ジャギー軽減
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    alpha: true,
+    antialias: true,
+  });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setClearColor(0x000000, 0); // 透明クリア
+
+  const scene = new THREE.Scene();
+
+  // カメラ（PerspectiveCamera）
+  // FOV 60度、アスペクト比はW/H、near/far は適宜調整
+  const camera = new THREE.PerspectiveCamera(60, W / H, 0.1, 100);
+  camera.position.z = 5;
+
+  // ライティング不要: ShaderMaterialは独自ライティングを持つため削除
+
+
+  // --- 2b. 毒ガスエフェクト WebGL セットアップ ------------------
+
+  const gasCanvas = document.getElementById('gas-canvas');
+  gasCanvas.width  = W;
+  gasCanvas.height = H;
+  const gasGL = gasCanvas.getContext('webgl2');
+
+  let poisonLevel = 0;
+  let gasTime     = 0;
+  let gasProgram  = null;
+  let gasUnifTime, gasUnifPoisonLevel, gasUnifResolution;
+
+  (function setupGas() {
+    function compileShader(type, src) {
+      const s = gasGL.createShader(type);
+      gasGL.shaderSource(s, src.trim());
+      gasGL.compileShader(s);
+      return s;
+    }
+    const vs = compileShader(gasGL.VERTEX_SHADER,
+      document.getElementById('gasVertexShader').textContent);
+    const fs = compileShader(gasGL.FRAGMENT_SHADER,
+      document.getElementById('gasFragmentShader').textContent);
+
+    gasProgram = gasGL.createProgram();
+    gasGL.attachShader(gasProgram, vs);
+    gasGL.attachShader(gasProgram, fs);
+    gasGL.linkProgram(gasProgram);
+
+    gasUnifTime         = gasGL.getUniformLocation(gasProgram, 'uTime');
+    gasUnifPoisonLevel  = gasGL.getUniformLocation(gasProgram, 'uPoisonLevel');
+    gasUnifResolution   = gasGL.getUniformLocation(gasProgram, 'uResolution');
+
+    gasGL.enable(gasGL.BLEND);
+    gasGL.blendFunc(gasGL.SRC_ALPHA, gasGL.ONE_MINUS_SRC_ALPHA);
+    gasGL.viewport(0, 0, W, H);
+  })();
+
+  function renderGas(dt) {
+    gasGL.clearColor(0, 0, 0, 0);
+    gasGL.clear(gasGL.COLOR_BUFFER_BIT);
+    if (!gasProgram || poisonLevel <= 0) return;
+
+    gasTime += dt * 0.001;
+    gasGL.useProgram(gasProgram);
+    gasGL.uniform1f(gasUnifTime, gasTime);
+    gasGL.uniform1f(gasUnifPoisonLevel, poisonLevel);
+    gasGL.uniform2f(gasUnifResolution, W, H);
+    gasGL.drawArrays(gasGL.TRIANGLE_STRIP, 0, 4);
+  }
+
+
+  // --- 3. OilBlob クラス -----------------------------------------
+  // Three.jsのSphereGeometryを毎フレームノイズで変形して
+  // 有機的な油玉の動きを表現する
+
+  class OilBlob {
+    /**
+     * @param {number} index - 油玉のインデックス（0〜BLOB_COUNT-1）
+     * @param {string} theme - 表示するテーマテキスト
+     */
+    constructor(index, theme) {
+      this.index = index;
+      this.theme = theme;
+
+      const radius = 0.35 + Math.random() * 0.15;
+      this.baseRadius = radius;
+
+      // 黄金螺旋で球面上に均等配置（SoapBubble参考実装）
+      const COUNT = 8000;
+      const positions = new Float32Array(COUNT * 3);
+      const PHI = Math.PI * (3 - Math.sqrt(5));
+      for (let i = 0; i < COUNT; i++) {
+        const y = 1 - (i / (COUNT - 1)) * 2;
+        const r = Math.sqrt(Math.max(0, 1 - y * y));
+        const theta = PHI * i;
+        positions[i * 3]     = Math.cos(theta) * r;
+        positions[i * 3 + 1] = y;
+        positions[i * 3 + 2] = Math.sin(theta) * r;
+      }
+      this.geometry = new THREE.BufferGeometry();
+      this.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+      // ShaderMaterial（GLSLシェーダーで虹色シャボン玉）
+      this.uniforms = {
+        uTime:       { value: Math.random() * 100 },
+        uRadius:     { value: radius },
+        uColorMorph: { value: 0.0 }, // 0=通常の水色, 1=#4C7C6B
+      };
+      this.elapsedMs = 0; // 生成からの経過時間（ms）
+      this.material = new THREE.ShaderMaterial({
+        vertexShader:   document.getElementById('vertexShader').textContent,
+        fragmentShader: document.getElementById('fragmentShader').textContent,
+        uniforms: this.uniforms,
+        transparent: true,
+        depthWrite: false,
+        glslVersion: THREE.GLSL3,
+      });
+
+      this.mesh = new THREE.Points(this.geometry, this.material);
+      scene.add(this.mesh);
+
+      // 各種アニメーションパラメータを初期化
+      this._initParams(false); // false = 画面内のランダム位置からスタート
+    }
+
+    /**
+     * パラメータ初期化（リスポーン時も呼ぶ）
+     * @param {boolean} spawnAtBottom - trueなら画面外下からスポーン
+     */
+    _initParams(spawnAtBottom = true) {
+      // 初期位置（画面下部で生成）
+      this.mesh.position.x = (Math.random() - 0.5) * 0.4;
+      if (spawnAtBottom) {
+        // リスポーン時: 画面外上から出現
+        this.mesh.position.y = 3.5 + Math.random() * 0.5;
+      } else {
+        // 初回: 画面上部に分散配置
+        this.mesh.position.y = 1.8 + Math.random() * 0.8;
+      }
+      this.mesh.position.z = (Math.random() - 0.5) * 0.5;
+
+      // 速度ベクトル
+      this.vx = (Math.random() - 0.5) * 0.004;
+      this.vy = 0.0004; // 常に一定の浮力
+      this.atCeiling = false;
+
+      // 横揺れ（小さな力を加える用）
+      this.driftPhase = Math.random() * Math.PI * 2;
+      this.driftSpeed = 0.0005 + Math.random() * 0.0003;
+
+      // 頂点モーフィングのタイムオフセット
+      this.morphPhase = Math.random() * Math.PI * 2;
+      this.morphSpeed = 0.0008 + Math.random() * 0.0005;
+
+      // 内部タイマー（各玉でずらす）
+      this.t = this.index * 800 + Math.random() * 500;
+
+      this.mesh.scale.set(1, 1, 1);
+      this.material.opacity = 0.82;
+      this.popping = false;
+      this.popProgress = 0;
+      this.isRotten = false;          // タップでなく腐って割れた
+      this.rottenPopped = false;      // 腐り自動ポップ済み
+      this.justFinishedRottenPop = false; // アニメ完了をanimateに通知
+
+      this.alive = true;
+    }
+
+    update(dt) {
+      if (!this.alive) return;
+
+      this.t += dt;
+
+      // ポップアニメーション（拡大＆フェードアウト）
+      if (this.popping) {
+        this.popProgress += dt / 400; // 400msで完了
+        const s = 1 + this.popProgress * 1.2;
+        this.mesh.scale.set(s, s, s);
+        this.material.opacity = Math.max(0, 0.82 * (1 - this.popProgress));
+        if (this.popProgress >= 1) {
+          this.alive = false;
+          this.mesh.visible = false;
+          if (this.isRotten) {
+            this.justFinishedRottenPop = true; // 腐り割れ完了をループに通知
+          }
+        }
+        this.uniforms.uTime.value += dt * 0.0004;
+        return;
+      }
+
+      const CEILING_Y = 2.6;
+      const WALL_X    = 1.1;
+
+      this.vx *= 0.95; // 減衰のみ（横方向は自然に止まる）
+
+      // 下からの微弱な圧力（力として加算）
+      this.vy += 0.000015;
+      this.vy *= 0.98; // 減衰（終端速度に収束）
+
+      // 位置を速度で更新
+      this.mesh.position.x += this.vx;
+      this.mesh.position.y += this.vy;
+
+      // 左右壁バウンス
+      if (this.mesh.position.x > WALL_X - this.baseRadius) {
+        this.mesh.position.x = WALL_X - this.baseRadius;
+        this.vx = -Math.abs(this.vx) * 0.6;
+      }
+      if (this.mesh.position.x < -WALL_X + this.baseRadius) {
+        this.mesh.position.x = -WALL_X + this.baseRadius;
+        this.vx =  Math.abs(this.vx) * 0.6;
+      }
+
+      // 天井に到達したら滞留
+      if (this.mesh.position.y >= CEILING_Y - this.baseRadius) {
+        this.mesh.position.y = CEILING_Y - this.baseRadius;
+        this.vy = 0;
+      }
+
+      this.uniforms.uTime.value += dt * 0.0004;
+
+      // 色変化: 生成30秒後から30秒かけて#4C7C6Bへモーフィング
+      this.elapsedMs += dt;
+      const COLOR_START = 30000;
+      const COLOR_DUR   = 30000;
+      if (this.elapsedMs > COLOR_START) {
+        this.uniforms.uColorMorph.value = Math.min(
+          (this.elapsedMs - COLOR_START) / COLOR_DUR, 1.0
+        );
+      }
+
+      // 色変化完了（60秒）で自動ポップ（腐った泡）
+      if (this.elapsedMs >= COLOR_START + COLOR_DUR && !this.popping && !this.rottenPopped) {
+        this.rottenPopped = true;
+        this.isRotten = true;
+        this.pop();
+      }
+
+    }
+
+    /**
+     * タップされた時の処理（下からリスポーン）
+     */
+    pop() {
+      this.popping = true;
+      this.popProgress = 0;
+    }
+
+    /**
+     * シーンからメッシュを削除してメモリを解放
+     */
+    dispose() {
+      scene.remove(this.mesh);
+      this.geometry.dispose();
+      this.material.dispose();
+    }
+  }
+
+
+  // --- 4. ラベルDOM管理 -------------------------------------------
+  // Three.jsの3D座標をスクリーン座標に変換してHTMLのdivを配置する
+  // Three.jsのSprite/CanvasTextureより日本語フォント品質が高い
+
+  const labelLayer = document.getElementById('label-layer');
+  const labelDivs   = []; // 各OilBlobに対応するdiv要素
+
+  function createLabelDivs(count) {
+    // 既存のラベルをすべて削除
+    labelLayer.innerHTML = '';
+    labelDivs.length = 0;
+
+    for (let i = 0; i < count; i++) {
+      const div = document.createElement('div');
+      div.className = 'blob-label';
+      div.textContent = '';
+      labelLayer.appendChild(div);
+      labelDivs.push(div);
+    }
+  }
+
+  /**
+   * 各OilBlobの3D位置をスクリーン座標に変換してラベルdivを移動
+   * @param {OilBlob[]} blobs
+   */
+  function updateLabels(blobs) {
+    // Three.jsのNDC（-1〜1）→ canvasのピクセル座標へ変換するVector
+    const vec = new THREE.Vector3();
+
+    blobs.forEach((blob, i) => {
+      const div = labelDivs[i];
+      if (!div) return;
+
+      // 泡が消えたらラベルも非表示
+      if (!blob.alive) {
+        div.style.opacity = '0';
+        div.textContent = '';
+        return;
+      }
+
+      div.textContent = blob.theme;
+
+      vec.copy(blob.mesh.position);
+      vec.project(camera);
+
+      const x = (vec.x  * 0.5 + 0.5) * W;
+      const y = (-vec.y * 0.5 + 0.5) * H;
+
+      div.style.left = `${x}px`;
+      div.style.top  = `${y}px`;
+
+      // ポップ中はラベルも一緒にフェードアウト
+      div.style.opacity = blob.popping
+        ? String(Math.max(0, 1 - blob.popProgress))
+        : String(blob.fadeAlpha);
+    });
+  }
+
+
+  // --- 5. メインループ -------------------------------------------
+
+  let blobs         = [];
+  let animId        = null;
+  let lastTime      = null;
+  let spawnedCount  = 0;   // これまでに生成した泡の数
+  let spawnTimer    = 0;   // 次の泡生成までのタイマー（ms）
+
+  const raycaster = new THREE.Raycaster();
+  const mouse     = new THREE.Vector2();
+
+  function animate(timestamp) {
+    if (!lastTime) lastTime = timestamp;
+    const dt = Math.min(timestamp - lastTime, 50); // 最大50msでクランプ（タブ非表示対策）
+    lastTime = timestamp;
+
+    // 順次生成：30秒ごとに1個追加（最大5個）
+    if (spawnedCount < MAX_BLOB_COUNT) {
+      spawnTimer += dt;
+      if (spawnTimer >= SPAWN_INTERVAL) {
+        spawnTimer = 0;
+        const theme = THEMES[Math.floor(Math.random() * THEMES.length)];
+        const blob = new OilBlob(spawnedCount, theme);
+        blobs.push(blob);
+        createLabelDivs(blobs.length);
+        spawnedCount++;
+      }
+    }
+
+    // 各油玉の更新
+    blobs.forEach(b => b.update(dt));
+
+    // 泡同士のコリジョン解決
+    for (let i = 0; i < blobs.length; i++) {
+      for (let j = i + 1; j < blobs.length; j++) {
+        const a = blobs[i], b = blobs[j];
+        const dx = b.mesh.position.x - a.mesh.position.x;
+        const dy = b.mesh.position.y - a.mesh.position.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const minDist = a.baseRadius + b.baseRadius;
+        if (dist < minDist && dist > 0.001) {
+          const nx = dx / dist, ny = dy / dist;
+          const overlap = (minDist - dist) * 0.5;
+          // 押し離す
+          a.mesh.position.x -= nx * overlap;
+          a.mesh.position.y -= ny * overlap;
+          b.mesh.position.x += nx * overlap;
+          b.mesh.position.y += ny * overlap;
+          // 速度を法線方向に反発
+          const relVx = b.vx - a.vx, relVy = b.vy - a.vy;
+          const dot = relVx * nx + relVy * ny;
+          if (dot < 0) {
+            const impulse = dot * 0.4;
+            a.vx += impulse * nx; a.vy += impulse * ny;
+            b.vx -= impulse * nx; b.vy -= impulse * ny;
+          }
+        }
+      }
+    }
+
+    // 腐り割れ完了の泡を検知 → 毒ガスレベルを上げる
+    blobs.forEach(b => {
+      if (b.justFinishedRottenPop) {
+        b.justFinishedRottenPop = false;
+        poisonLevel = Math.min(poisonLevel + 1, MAX_BLOB_COUNT);
+      }
+    });
+
+    // ラベル位置を同期
+    updateLabels(blobs);
+
+    // 毒ガスエフェクト描画
+    renderGas(dt);
+
+    // Three.js描画
+    renderer.render(scene, camera);
+
+    animId = requestAnimationFrame(animate);
+  }
+
+
+  // --- 6. タップインタラクション（Raycaster） --------------------
+  // Three.jsのRaycasterを使ってどの油玉がタップされたか判定
+  // pointer-eventsをもつ #tap-layer にイベントリスナーを設定
+
+  const tapLayer = document.getElementById('tap-layer');
+
+  tapLayer.addEventListener('click', handleTap);
+  tapLayer.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    const touch = e.changedTouches[0];
+    handleTap(touch);
+  }, { passive: false });
+
+  function handleTap(e) {
+    const rect = canvas.getBoundingClientRect();
+    const tapX = e.clientX - rect.left;
+    const tapY = e.clientY - rect.top;
+
+    const vec = new THREE.Vector3();
+    let hitBlob = null;
+    let minDist = Infinity;
+
+    blobs.forEach(blob => {
+      // 泡の3D中心をスクリーン座標に投影
+      vec.copy(blob.mesh.position);
+      vec.project(camera);
+
+      const sx = (vec.x + 1) / 2 * rect.width;
+      const sy = (1 - (vec.y + 1) / 2) * rect.height;
+
+      // 泡の半径をピクセル換算（baseRadiusをスクリーン幅基準で概算）
+      const radiusPx = blob.baseRadius / 2.89 * rect.width * 0.5;
+
+      const dist = Math.sqrt((tapX - sx) ** 2 + (tapY - sy) ** 2);
+      if (dist < radiusPx && dist < minDist) {
+        minDist = dist;
+        hitBlob = blob;
+      }
+    });
+
+    if (hitBlob) {
+      hitBlob.pop();
+    }
+  }
+
+
+  // --- 7. リセット処理 -------------------------------------------
+
+  function resetAll() {
+    // アニメーション停止
+    if (animId) cancelAnimationFrame(animId);
+    lastTime = null;
+
+    // 毒ガスリセット
+    poisonLevel = 0;
+    gasTime = 0;
+
+    // 既存の油玉を破棄（メモリリーク防止）
+    blobs.forEach(b => b.dispose());
+    blobs = [];
+
+    // 最初の1個だけ即座に生成
+    spawnedCount = 0;
+    spawnTimer   = 0;
+    const firstTheme = THEMES[Math.floor(Math.random() * THEMES.length)];
+    blobs.push(new OilBlob(0, firstTheme));
+    spawnedCount = 1;
+    spawnTimer   = 0;
+
+    createLabelDivs(1);
+
+    // アニメーション再開
+    animId = requestAnimationFrame(animate);
+  }
+
+  document.getElementById('btn-reset').addEventListener('click', resetAll);
+  document.getElementById('btn-poison').addEventListener('click', () => {
+    poisonLevel = Math.min(poisonLevel + 1, MAX_BLOB_COUNT);
+  });
+
+
+  // --- 背景動画の再生 -------------------------------------------
+  // autoplay属性があるが、ブラウザによってはユーザーインタラクション前に
+  // ブロックされる場合があるため、明示的にplay()も呼ぶ
+  const bgVideo = document.getElementById('bg-video');
+  bgVideo.play().catch(() => {
+    // 自動再生ブロック時はフォールバック（posterのpng画像が表示される）
+    // 【要実装】必要に応じてユーザーへの再生促進UIを追加
+  });
+
+
+  // --- 初期起動 -------------------------------------------------
+  resetAll();
+
+  </script>
+
+  <!--
+  ============================================================
+  実装メモ（エンジニア・デザイナー向け）
+  ============================================================
+
+  【技術構成】
+  - Three.js 0.162.0（CDN ES Module）
+  - 背景: <video>タグでbackground_soda.webmをループ再生
+  - 3D球体: Three.js WebGLRenderer（alpha: true = 透明背景）
+  - テキスト: HTML divをVector3.project()でスクリーン座標同期
+
+  【ファイル依存】
+  - background_soda.webm（ループ背景動画、同ディレクトリ必須）
+  - background_soda.png（動画ロード前のposter画像）
+
+  【パフォーマンス注意】
+  - OilBlob.update()内で毎フレーム全頂点(48×48 ≈ 2304頂点 × 4玉)を
+    CPU上で変形し、computeVertexNormals()も呼んでいる
+  - スマホ実機での負荷が高い場合はGLSLシェーダーによるGPU側変形を推奨
+  - SphereGeometryのセグメント数を32x32に下げることでも軽量化可能
+
+  【Three.jsバージョン更新時の注意】
+  - three.module.jsのCDN URLのバージョン番号を変更する
+  - MeshPhongMaterialのシンタックスに変更なければそのまま動く見込み
+
+  【本番実装時に要対応】
+  - THEMESの内容をAPIから動的取得する
+  - タップ時のインタラクション演出の追加（エフェクト、画面遷移など）
+  - 背景動画のファイルパスを本番サーバーに合わせる
+  - リセットボタンは本番では削除またはデバッグモード限定に変更
+
+  ============================================================
+  -->
+
+</body>
+</html>

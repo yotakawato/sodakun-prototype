@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ソーダくん - アクセス</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #1a1a2e;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Maru Gothic ProN', sans-serif;
+    }
+
+    .card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 24px;
+      padding: 48px 40px;
+      width: 320px;
+      text-align: center;
+      backdrop-filter: blur(12px);
+    }
+
+    .logo {
+      font-size: 28px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.4);
+      margin-bottom: 36px;
+    }
+
+    input[type="password"] {
+      width: 100%;
+      padding: 14px 16px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 12px;
+      color: #fff;
+      font-size: 15px;
+      letter-spacing: 0.1em;
+      outline: none;
+      transition: border-color 0.2s;
+      margin-bottom: 16px;
+    }
+
+    input[type="password"]:focus {
+      border-color: rgba(100, 180, 255, 0.5);
+    }
+
+    input[type="password"]::placeholder {
+      color: rgba(255, 255, 255, 0.25);
+      letter-spacing: 0.05em;
+    }
+
+    .error {
+      font-size: 12px;
+      color: #ff6b8a;
+      margin-bottom: 14px;
+      min-height: 18px;
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      background: rgba(100, 160, 255, 0.2);
+      border: 1px solid rgba(100, 160, 255, 0.3);
+      border-radius: 12px;
+      color: rgba(180, 220, 255, 0.9);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      letter-spacing: 0.05em;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: rgba(100, 160, 255, 0.35);
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">ソーダくん</div>
+    <div class="subtitle">プロトタイプ プレビュー</div>
+
+    <form method="POST" action="/login" id="form">
+      <input
+        type="password"
+        name="password"
+        placeholder="パスワードを入力"
+        autofocus
+        autocomplete="current-password"
+      >
+      <div class="error" id="error-msg"></div>
+      <button type="submit">入室する</button>
+    </form>
+  </div>
+
+  <script>
+    // URLパラメータでエラーを表示
+    const params = new URLSearchParams(location.search);
+    if (params.get('error') === '1') {
+      document.getElementById('error-msg').textContent = 'パスワードが違います';
+    }
+  </script>
+</body>
+</html>

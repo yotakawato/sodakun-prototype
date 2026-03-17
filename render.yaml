@@ -1,9 +1,9 @@
 services:
   - type: web
     name: sodakun-prototype
-    runtime: node
+    env: node
     buildCommand: npm install
-    startCommand: npm start
+    startCommand: node server.js
     envVars:
       - key: PASSWORD
         sync: false  # Render.comのダッシュボードで手動設定

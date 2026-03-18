@@ -401,21 +401,28 @@ void main() {
   float band = fract(nScaled);
   float edgeIntensity = 1.0 - smoothstep(0.0, 0.06, band) * smoothstep(1.0, 0.94, band);
 
-  // カラーパレット: 緑50% / 紫30% / 毒々しいピンク20%
-  vec3 green      = vec3(0.05, 0.38, 0.22);   // 毒っぽい緑
-  vec3 brightPurple = vec3(0.62, 0.10, 0.85); // 明るい紫
-  vec3 toxicPink  = vec3(1.00, 0.12, 0.58);   // 毒々しいピンク
-  vec3 edgeColor  = vec3(0.75, 0.05, 0.95);   // 等高線: 鮮やかな紫
+  // カラーパレット（参考動画に合わせた: ダークティール背景 + マゼンタブロブ + パープル等高線）
+  vec3 darkBg    = vec3(0.04, 0.22, 0.18);
+  vec3 midGreen  = vec3(0.07, 0.35, 0.27);
+  vec3 magenta   = vec3(0.72, 0.17, 0.43);
+  vec3 lightPink = vec3(0.88, 0.38, 0.58);
+  vec3 purple    = vec3(0.38, 0.08, 0.58);
 
-  // ノイズ値でエリアを分割: [0.0-0.5]=緑, [0.5-0.8]=紫, [0.8-1.0]=ピンク
-  float gWeight = 1.0 - smoothstep(0.45, 0.55, n);
-  float pWeight = smoothstep(0.45, 0.55, n) * (1.0 - smoothstep(0.75, 0.85, n));
-  float kWeight = smoothstep(0.75, 0.85, n);
+  // ノイズ値に応じたカラーマッピング
+  float t1 = smoothstep(0.25, 0.45, n);
+  float t2 = smoothstep(0.55, 0.72, n);
+  float t3 = smoothstep(0.82, 0.96, n);
 
-  vec3 color = green * gWeight + brightPurple * pWeight + toxicPink * kWeight;
+  vec3 color = mix(darkBg, midGreen, t1);
+  color = mix(color, magenta, t2 * (1.0 - t3));
+  color = mix(color, darkBg, t3);
 
-  // 等高線を明るい紫で描画
-  color = mix(color, edgeColor, edgeIntensity * 0.9);
+  // パープル等高線を合成
+  color = mix(color, purple, edgeIntensity * 0.85);
+
+  // マゼンタ中心の明るいハイライト
+  float highlight = smoothstep(0.62, 0.75, n) * (1.0 - smoothstep(0.75, 0.82, n));
+  color = mix(color, lightPink, highlight * 0.6);
 
   // 毒ガス強度（腐った泡の数で不透明度が上がる）
   float maxAlpha = clamp(uPoisonLevel / 5.0, 0.0, 1.0) * 0.82;
